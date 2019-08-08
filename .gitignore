@@ -1,0 +1,10 @@
+*/Binaries
+*/Build
+*/Content/StarterContent
+*/Derived Data Cache
+*/Intermediate
+*/Saved
+
+*.VC.db
+*.db-shm
+*.db-wal
