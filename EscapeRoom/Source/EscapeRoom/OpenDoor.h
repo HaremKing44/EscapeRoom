@@ -24,6 +24,8 @@ protected:
 	void OpenDoor();
 	void CloseDoor();
 
+	float GetTotalMassOfActorOnPlate();
+
 public:	
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -42,5 +44,4 @@ private:
 
 	float LastTimeDoorOpen{};
 
-	AActor* ActorThatOpen;
 };

@@ -5,6 +5,7 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "DrawDebugHelpers.h"
+#include "PhysicsEngine/PhysicsHandleComponent.h"
 
 #define OUT
 
@@ -24,25 +25,29 @@ void UGrabber::BeginPlay()
 {
 	Super::BeginPlay();
 
+	FindPhysicsHandleComponent();
+
+	SetupInputComponent();
+}
+
+void UGrabber::FindPhysicsHandleComponent()
+{
 	// Find an attached component(PhysicsHandle).
 	PhysicsHandle = GetOwner()->FindComponentByClass<UPhysicsHandleComponent>();
 
-	if (PhysicsHandle)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Physics Handler is attached to: %s"), *(GetOwner()->GetName()))
-	}
-	else
+	if (PhysicsHandle == nullptr)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Physics Handle is not attached to: %s"), *(GetOwner()->GetName()))
 	}
+}
 
+void UGrabber::SetupInputComponent()
+{
 	//Find an attached component(InputComponent)
 	InputComponent = GetOwner()->FindComponentByClass<UInputComponent>();
 
 	if (InputComponent)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Input Component is attached to: %s"), *(GetOwner()->GetName()))
-
 		//Bind an action.
 		InputComponent->BindAction("Grab", IE_Pressed, this, &UGrabber::Grab);
 		InputComponent->BindAction("Grab", IE_Released, this, &UGrabber::Release);
@@ -55,12 +60,28 @@ void UGrabber::BeginPlay()
 
 void UGrabber::Grab()
 {
-	UE_LOG(LogTemp, Warning, TEXT("Grab Pressed!"))
+	//LINE TRACE and see if we reach any actor with physicsbody collision channel in reach.
+	auto HitResult = GetFirstPhysicsBodyInReach();
+	auto ComponentToGrab = HitResult.GetComponent();
+	auto ActorHit = HitResult.GetActor();
+
+	//if we hit something, attach a physics handle.
+	if (ActorHit)
+	{
+		//attach a physics handle.
+		PhysicsHandle->GrabComponent(
+			ComponentToGrab,
+			NAME_None,
+			ComponentToGrab->GetOwner()->GetActorLocation(),
+			true
+		);
+	}
 }
 
 void UGrabber::Release()
 {
-	UE_LOG(LogTemp, Warning, TEXT("Grab Released!"))
+	//release grabbed obeject.
+	PhysicsHandle->ReleaseComponent();
 }
 
 // Called every frame
@@ -68,27 +89,39 @@ void UGrabber::TickComponent(float DeltaTime, ELevelTick TickType, FActorCompone
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
+	
+
+	///if the physics handle attach
+	if (PhysicsHandle)
+	{
+		//move the object.
+		PhysicsHandle->SetTargetLocation(GetReachLineEnd());
+	}
+}
+
+FVector UGrabber::GetReachLineStart()
+{
 	//Get PlayerView Point this tick
 	FVector PlayerViewpointLocation;
 	FRotator PlayerViewpointRotation;
 	GetWorld()->GetFirstPlayerController()->GetPlayerViewPoint(OUT PlayerViewpointLocation, OUT PlayerViewpointRotation);
 
-	//Log out
-	//UE_LOG(LogTemp, Warning, TEXT("Direction: %s, Rotation: %s"), *PlayerViewpointLocation.ToString(), *PlayerViewpointRotation.ToString())
+	return PlayerViewpointLocation;
+}
 
-	//Draw a Red-Line to visualize in world
-	FVector LineTraceEnd = PlayerViewpointLocation + PlayerViewpointRotation.Vector() * Reach;
-	DrawDebugLine(
-		GetWorld(),
-		PlayerViewpointLocation,
-		LineTraceEnd,
-		FColor(255, 0, 0),
-		false,
-		0.f,
-		0.f,
-		10.f
-	);
 
+FVector UGrabber::GetReachLineEnd()
+{
+	//Get PlayerView Point this tick
+	FVector PlayerViewpointLocation;
+	FRotator PlayerViewpointRotation;
+	GetWorld()->GetFirstPlayerController()->GetPlayerViewPoint(OUT PlayerViewpointLocation, OUT PlayerViewpointRotation);
+
+	return PlayerViewpointLocation + PlayerViewpointRotation.Vector() * Reach;
+}
+
+FHitResult const UGrabber:: GetFirstPhysicsBodyInReach()
+{
 	//Setup QueryParameters
 	FCollisionQueryParams TraceParameter(FName(TEXT("")), false, GetOwner());
 
@@ -97,17 +130,11 @@ void UGrabber::TickComponent(float DeltaTime, ELevelTick TickType, FActorCompone
 
 	GetWorld()->LineTraceSingleByObjectType(
 		OUT Hit,
-		PlayerViewpointLocation,
-		LineTraceEnd,
+		GetReachLineStart(),
+		GetReachLineEnd(),
 		FCollisionObjectQueryParams(ECollisionChannel::ECC_PhysicsBody),
 		TraceParameter
 	);
 
-	//see what we hit
-	AActor* ActorHit = Hit.GetActor();
-	if (ActorHit)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("hit object: %s"), *ActorHit->GetName())
-	}
+	return Hit;
 }
-
